@@ -140,21 +140,73 @@ class Database:
         
         data = (session_id,)
         
-        return self.execute(query,data)[0]
+        return self.execute(query,data)
     
     def countEmail(self,email):
         query = "SELECT COUNT(*)  FROM users WHERE email = ? " 
         
         data = (email,)
-        
+        print(self.execute(query,data))
         return self.execute(query,data)
     
     def countName(self,name):
         query = "SELECT COUNT(*)  FROM users WHERE username = ? " 
         
         data = (name,)
-        
         return self.execute(query,data)
 
         
     
+    def duplicateSessionName(self,name):
+        query = "SELECT id,password_hash  FROM users WHERE username = ? " 
+        
+        data = (name,)
+        
+        user_data = self.execute(query,data)
+        
+        if(len(user_data)==0):
+            return (False,[])
+        
+        user_id = user_data[0]
+        
+        query = "SELECT session_id,created_at FROM sessions WHERE user_id = ?"
+        
+        session_data = self.execute(query,(user_id,))
+        
+        if(session_data[0] and len(session_data[1])>0):
+            return (True,[name,user_data[1][0][1],user_id,session_data[0]])
+        
+        else:
+            return (False,[name,user_data[1][0][1],user_id])
+        
+        
+    def duplicateSessionEmail(self,email):
+        query = "SELECT id,password_hash  FROM users WHERE email = ? " 
+        
+        data = (email,)
+        
+        user_data = self.execute(query,data)
+        
+        if(len(user_data)==0):
+            return (False,[])
+        
+        user_id = user_data[0]
+        
+        query = "SELECT session_id,created_at FROM sessions WHERE user_id = ?"
+        
+        session_data = self.execute(query,(user_id,))
+        
+        if(session_data[0] and len(session_data[1])>0):
+            return (True,[email,user_data[1][0][1],user_id,session_data[0]])
+        
+        else:
+            return (False,[email,user_data[1][0][1],user_id])
+            
+        
+        
+        
+        
+        
+        
+        
+        

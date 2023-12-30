@@ -3,14 +3,15 @@ import bcrypt
 import uuid
 import jwt
 import datetime
-
-
+import time
+from dotenv import dotenv_values
+env_variables = dotenv_values(".env")
 
 
 class Auth:
     def __init__(self,inf=True):
         self.db = Database.Database(keep_connected=inf)
-        self.secret_key = ""
+        self.secret_key = env_variables.get("SECRET_KEY")
     
     def hashPassword(self,password):
         salt = bcrypt.gensalt()
@@ -23,10 +24,10 @@ class Auth:
     
     
     def emailUnique(self,email):
-        return self.db.countEmail(email)[1][0]>0
+        return int(self.db.countEmail(email)[1][0][0])==0
     
     def nameUnique(self,name):
-        return self.db.countName(name)[1][0]>0
+        return int(self.db.countName(name)[1][0][0])==0
       
     def registerUser(self,username,email,password):
         if not self.nameUnique(username):
@@ -36,8 +37,8 @@ class Auth:
             return (False,{"message":"Duplicate email"})
             
             
-        res = self.db.newUser(username,self.hash_password(password),email)
-        if (res[0]):
+        res = self.db.newUser(username,self.hashPassword(password),email)
+        if (res):
             return (True,{"message":"Registration Success"})
         return (False,{"message":"Failed"})
     
@@ -52,50 +53,64 @@ class Auth:
         return (True,{"message":"Login Successfull","token":token})
     
     def loginUserEmail(self,email,password,extra_payload = {}):
-        loginRes = self.db.emailHash(email)
-        if loginRes[0] and len(loginRes[1])>0:
-            if self.verifyPassword(password,loginRes[1][1]):
-                session_id =  str(uuid.uuid4())
-                sessionRes = self.db.createSession(loginRes[1][2],session_id)
-                if(sessionRes[0]):
-                    return self.generateSessionToken(session_id,extra_payload)
+        userData = self.db.duplicateSessionEmail(email)
+        
+        if(len(userData[1])==0):
+            return (False,{'message':"Invalid Credentials"})
+        
+        if not self.verifyPassword(password,userData[1][1]):
+            return (False,{"message":"Password Didnt Match"})
+        
+        
+        if(not userData[0]):
+            session_id =  str(uuid.uuid4())
+            sessionRes = self.db.createSession(userData[1][2],session_id)
+            if(not sessionRes):
                 return (False,{'message':"Unable to create a Session"})
-            else:
-                return (False,{"message":"Password Didnt Match"})
+        else:
+            session_id = userData[1][3]
+        
+        return self.generateSessionToken(session_id,extra_payload)
             
-        return (False,{'message':"Invalid Credentials"})
             
-            
-    def loginUserName(self,name,password,extra_payload):
-        loginRes = self.db.nameHash(name)
-        if loginRes[0] and len(loginRes[1])>0:
-            if self.verifyPassword(password,loginRes[1][1]):
-                session_id =  str(uuid.uuid4())
-                sessionRes = self.db.createSession(loginRes[1][2],session_id)
-                if(sessionRes[0]):
-                    return self.generateSessionToken(session_id,extra_payload)
+    def loginUserName(self,name,password,extra_payload={}):
+        userData = self.db.duplicateSessionName(name)
+        
+        if(len(userData[1])==0):
+            return (False,{'message':"Invalid Credentials"})
+        
+        if not self.verifyPassword(password,userData[1][1]):
+            return (False,{"message":"Password Didnt Match"})
+        
+        
+        if(not userData[0]):
+            session_id =  str(uuid.uuid4())
+            sessionRes = self.db.createSession(userData[1][2],session_id)
+            if(not sessionRes):
                 return (False,{'message':"Unable to create a Session"})
-            else:
-                return (False,{"message":"Password Didnt Match"})
-            
-        return (False,{'message':"Invalid Credentials"})
+        else:
+            session_id = userData[1][3]
+        
+        return self.generateSessionToken(session_id,extra_payload)
+        
+       
     
     def decodeToken(self,token):
         return jwt.decode(token, self.secret_key, algorithms=['HS256'])
     
-    def validateSession(self):
-        pass
+    def validateSession(self,expiration):
+        return expiration-time.time() > 0
     
     
     def verifyToken(self,token):
         data = self.decodeToken(token)
-        
-        session_id =  data.session_id
+        session_id =  data['session_id']
         
         sessionRes = self.db.retriveSession(session_id)
+        print(sessionRes)
         
-        if sessionRes[0]:
-            if self.validateSession():
+        if sessionRes[0] and len(sessionRes[1])>0:
+            if self.validateSession(data['exp']):
                 self.db.updateInteraction(session_id)
                 return (True,{"message":"Valid","data":data})
             else:
@@ -105,13 +120,11 @@ class Auth:
     
     def logoutSession(self,token):
         data = self.decodeToken(token)
-        session_id =  data.session_id
+        session_id =  data['session_id']
         sessionRes = self.db.removeSession(session_id)
-        if sessionRes[0]:
+        if sessionRes and len(sessionRes[1])>0:
             return (True,{"message":"Logged Out"})
         else:
-            return (False,{"message":"Session has already logged out"})
+            return (False,{"message":"Session has already logged out or invalid Token"})
     
     
-if __name__=="__main__":
-    pass
