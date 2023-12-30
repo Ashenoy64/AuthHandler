@@ -26,7 +26,17 @@ To use the AuthHandler module, follow these steps:
 
     This will install the necessary dependencies for the module.
 
-2. Include the `AuthHandler` module in your project:
+2. Create a `.env` file:
+
+    Create a `.env` file in the root directory of your project and add the following line:
+    
+    ```plaintext
+    SECRET_KEY=your_secret_key_here
+    ```
+
+    Replace `your_secret_key_here` with your own secret key for JWT token encryption. Ensure this key is kept confidential and not shared publicly.
+
+3. Include the `AuthHandler` module in your project:
 
     ```python
     from Auth import Auth  # Import the Auth module
